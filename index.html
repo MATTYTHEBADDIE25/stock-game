@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ultimate Stock Market Simulator</title>
+<style>
+  body {
+    background: #050814;
+    color: #e8e8e8;
+    font-family: Arial, sans-serif;
+    margin: 0;
+  }
+  header {
+    background: #0d1224;
+    padding: 10px 18px;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #333;
+    align-items: center;
+  }
+  h1 { margin: 0; font-size: 22px; }
+  .stats span { margin-left: 15px; font-size: 13px; }
+  main {
+    display: grid;
+    grid-template-columns: 2fr 1.4fr;
+    grid-template-rows: auto auto;
+    gap: 10px;
+    padding: 10px;
+  }
+  .panel {
+    background: #10172b;
+    padding: 10px;
+    border-radius: 6px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.4);
+  }
+  .panel h2 {
+    margin: 0 0 6px 0;
+    font-size: 15px;
+    border-bottom: 1px solid #222;
+    padding-bottom: 4px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  th, td {
+    padding: 4px;
+    border-bottom: 1px solid #222;
+  }
+  th {
+    background: #18213b;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  tr:nth-child(even) { background: #141c33; }
+  .positive { color: #4caf50; }
+  .negative { color: #ff5252; }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .controls input, .controls select, .controls button {
+    padding: 4px 6px;
+    background: #0b1020;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .controls button {
+    background: #2b7cff;
+    border-color: #2b7cff;
+    cursor: pointer;
+  }
+  .controls button:hover {
+    background: #215fcc;
+  }
+  #log {
+    max-height: 220px;
+    overflow-y: auto;
+    background: #050814;
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  #log div { margin-bottom: 3px; }
+  canvas {
+    background: #050814;
+    border-radius: 4px;
+  }
+  .subrow {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .subrow > div { flex: 1; }
+  .small-label { font-size: 11px; opacity: 0.8; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ultimate Stock Market Simulator</h1>
+  <div class="stats">
+    <span>Cash: $<span id="cash">10000</span></span>
+    <span>Portfolio: $<span id="portfolioValue">0</span></span>
+    <span>Options: $<span id="optionsValue">0</span></span>
+    <span>Net Worth: $<span id="netWorth">10000</span></span>
+    <span>Day: <span id="day">1</span></span>
+  </div>
+  <div>
+    <button id="saveBtn">Save</button>
+    <button id="loadBtn">Load</button>
+  </div>
+</header>
+
+<main>
+  <!-- Market & Orders -->
+  <section class="panel" style="grid-column: 1 / 2; grid-row: 1 / 2;">
+    <h2>Market & Orders</h2>
+    <div class="controls">
+      <select id="symbolSelect"></select>
+      <select id="orderType">
+        <option value="market">Market</option>
+        <option value="limit">Limit</option>
+        <option value="stop">Stop-Loss</option>
+      </select>
+      <select id="side">
+        <option value="buy">Buy</option>
+        <option value="sell">Sell</option>
+        <option value="short">Short</option>
+        <option value="cover">Cover</option>
+      </select>
+      <input type="number" id="shares" value="10" min="1" style="width:70px;">
+      <input type="number" id="limitPrice" placeholder="Limit/Stop" style="width:90px;">
+      <button id="submitOrder">Submit</button>
+      <button id="nextDay">Next Day</button>
+      <button id="autoBtn">Start Auto</button>
+    </div>
+
+    <table id="marketTable">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Price</th>
+          <th>Bid</th>
+          <th>Ask</th>
+          <th>Change</th>
+          <th>P/E</th>
+          <th>EPS</th>
+          <th>Div</th>
+          <th>Sector</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Portfolio & Options -->
+  <section class="panel" style="grid-column: 2 / 3; grid-row: 1 / 2;">
+    <h2>Portfolio & Options</h2>
+    <div class="subrow">
+      <div>
+        <div class="small-label">Equity Positions</div>
+        <table id="portfolioTable">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Shares</th>
+              <th>Avg Cost</th>
+              <th>Value</th>
+              <th>P/L</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div>
+        <div class="small-label">Options Positions</div>
+        <table id="optionsTable">
+          <thead>
+            <tr>
+              <th>Sym</th>
+              <th>Type</th>
+              <th>Strike</th>
+              <th>Exp</th>
+              <th>Qty</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3 style="margin-top:8px;font-size:13px;">Trade Options</h3>
+    <div class="controls">
+      <select id="optSymbol"></select>
+      <select id="optType">
+        <option value="call">Call</option>
+        <option value="put">Put</option>
+      </select>
+      <input type="number" id="optStrike" placeholder="Strike" style="width:80px;">
+      <input type="number" id="optDays" placeholder="Days to Exp" style="width:90px;">
+      <input type="number" id="optQty" value="1" min="1" style="width:60px;">
+      <button id="buyOptionBtn">Buy Option</button>
+    </div>
+  </section>
+
+  <!-- Charts -->
+  <section class="panel" style="grid-column: 1 / 2; grid-row: 2 / 3;">
+    <h2>Charts</h2>
+    <div class="subrow">
+      <div>
+        <div class="small-label">Candlestick (Selected Symbol)</div>
+        <canvas id="priceChart" width="400" height="200"></canvas>
+      </div>
+      <div>
+        <div class="small-label">Net Worth Over Time</div>
+        <canvas id="equityChart" width="400" height="200"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- News & AI Bot -->
+  <section class="panel" style="grid-column: 2 / 3; grid-row: 2 / 3;">
+    <h2>News & AI Trader</h2>
+    <div class="controls">
+      <button id="aiToggleBtn">Start AI Trader</button>
+      <span class="small-label">AI: simple momentum/mean-reversion bot</span>
+    </div>
+    <div id="log"></div>
+  </section>
+</main>
+
+<script>
+/* ===========================
+   CORE STATE
+   =========================== */
+const state = {
+  day: 1,
+  cash: 10000,
+  auto: false,
+  timer: null,
+  speed: 800,
+  portfolio: {},          // symbol -> { shares, avgCost }
+  shorts: {},             // symbol -> { shares, entryPrice }
+  options: [],            // {symbol, type, strike, expiryDay, qty, premium}
+  stocks: [],
+  history: {},            // symbol -> [{open,high,low,close,day}]
+  equityCurve: [],        // [{day, netWorth}]
+  aiRunning: false
+};
+
+const initialStocks = [
+  { symbol: "AAPL", price: 180, eps: 6.2, dividend: 0.8, sector: "Tech", volatility: 0.02 },
+  { symbol: "MSFT", price: 320, eps: 9.1, dividend: 1.2, sector: "Tech", volatility: 0.018 },
+  { symbol: "TSLA", price: 220, eps: 3.5, dividend: 0,   sector: "Auto", volatility: 0.035 },
+  { symbol: "AMZN", price: 140, eps: 2.8, dividend: 0,   sector: "Consumer", volatility: 0.022 },
+  { symbol: "JPM",  price: 150, eps: 12.3, dividend: 3.2,sector: "Finance", volatility: 0.015 },
+  { symbol: "XOM",  price: 110, eps: 8.7, dividend: 4.1, sector: "Energy", volatility: 0.02 },
+  { symbol: "NVDA", price: 650, eps: 18.4, dividend: 1.0,sector: "Tech", volatility: 0.04 }
+];
+
+/* ===========================
+   UTILITIES
+   =========================== */
+function randn() {
+  let u = Math.random(), v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function log(msg, type="info") {
+  const div = document.getElementById("log");
+  const e = document.createElement("div");
+  e.textContent = `[Day ${state.day}] ${msg}`;
+  if (type === "good") e.classList.add("positive");
+  if (type === "bad") e.classList.add("negative");
+  div.prepend(e);
+}
+
+/* ===========================
+   NEWS & PRICE DYNAMICS
+   =========================== */
+function generateNewsAndImpact(stock) {
+  let impact = 0;
+  const r = Math.random();
+
+  // Company-specific news
+  if (r < 0.05) {
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const mag = 0.03 + Math.random() * 0.05;
+    impact += dir * mag;
+    log(`${stock.symbol} news: ${dir>0?"strong beat":"bad miss"} moves stock ${(dir*mag*100).toFixed(1)}%.`,
+        dir>0?"good":"bad");
+  }
+
+  // Sector news
+  if (r > 0.9) {
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const mag = 0.02 + Math.random() * 0.04;
+    impact += dir * mag;
+    log(`${stock.sector} sector sentiment ${dir>0?"improves":"worsens"} ${(dir*mag*100).toFixed(1)}%.`,
+        dir>0?"good":"bad");
+  }
+
+  // Rare macro event
+  if (Math.random() < 0.02) {
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const mag = 0.08 + Math.random() * 0.08;
+    impact += dir * mag;
+    log(`Macro shock hits market: ${(dir*mag*100).toFixed(1)}%.`,
+        dir>0?"good":"bad");
+  }
+
+  return impact;
+}
+
+function updatePrices() {
+  state.stocks.forEach(stock => {
+    const prev = stock.price;
+    const drift = 0.0005;
+    const shock = randn() * stock.volatility;
+    const newsImpact = generateNewsAndImpact(stock);
+    const total = drift + shock + newsImpact;
+
+    const open = prev;
+    let close = prev * (1 + total);
+    if (close < 1) close = 1;
+
+    // simple candle high/low
+    const high = Math.max(open, close) * (1 + Math.random()*0.01);
+    const low  = Math.min(open, close) * (1 - Math.random()*0.01);
+
+    stock.prevPrice = prev;
+    stock.price = close;
+    stock.bid = stock.price * 0.995;
+    stock.ask = stock.price * 1.005;
+
+    if (!state.history[stock.symbol]) state.history[stock.symbol] = [];
+    state.history[stock.symbol].push({
+      day: state.day,
+      open, high, low, close
+    });
+    if (state.history[stock.symbol].length > 120) {
+      state.history[stock.symbol].shift();
+    }
+  });
+}
+
+/* ===========================
+   PORTFOLIO & OPTIONS
+   =========================== */
+function portfolioValue() {
+  let total = 0;
+  for (const sym in state.portfolio) {
+    const pos = state.portfolio[sym];
+    const stock = state.stocks.find(s => s.symbol === sym);
+    if (!stock) continue;
+    total += pos.shares * stock.price;
+  }
+  // shorts: negative shares, but we track separately
+  for (const sym in state.shorts) {
+    const pos = state.shorts[sym];
+    const stock = state.stocks.find(s => s.symbol === sym);
+    if (!stock) continue;
+    const current = pos.shares * stock.price;
+    const entry = pos.shares * pos.entryPrice;
+    total += (entry - current); // unrealized P/L from short
+  }
+  return total;
+}
+
+function optionTheoreticalValue(opt) {
+  const stock = state.stocks.find(s => s.symbol === opt.symbol);
+  if (!stock) return 0;
+  const S = stock.price;
+  const K = opt.strike;
+  const T = Math.max(opt.expiryDay - state.day, 0);
+  const intrinsic = opt.type === "call"
+    ? Math.max(S - K, 0)
+    : Math.max(K - S, 0);
+  const timeValue = T > 0 ? 0.1 * Math.sqrt(T) : 0;
+  return (intrinsic + timeValue) * opt.qty * 100;
+}
+
+function optionsValue() {
+  return state.options.reduce((sum, opt) => sum + optionTheoreticalValue(opt), 0);
+}
+
+function updateStats() {
+  const pv = portfolioValue();
+  const ov = optionsValue();
+  const net = state.cash + pv + ov;
+  document.getElementById("cash").textContent = state.cash.toFixed(2);
+  document.getElementById("portfolioValue").textContent = pv.toFixed(2);
+  document.getElementById("optionsValue").textContent = ov.toFixed(2);
+  document.getElementById("netWorth").textContent = net.toFixed(2);
+  document.getElementById("day").textContent = state.day;
+
+  state.equityCurve.push({ day: state.day, netWorth: net });
+  if (state.equityCurve.length > 200) state.equityCurve.shift();
+}
+
+/* ===========================
+   RENDERING
+   =========================== */
+function renderMarket() {
+  const tbody = document.querySelector("#marketTable tbody");
+  tbody.innerHTML = "";
+  state.stocks.forEach(s => {
+    const pe = (s.price / s.eps).toFixed(1);
+    const change = s.prevPrice ? s.price - s.prevPrice : 0;
+    const pct = s.prevPrice ? (change / s.prevPrice) * 100 : 0;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${s.symbol}</td>
+      <td>$${s.price.toFixed(2)}</td>
+      <td>$${s.bid.toFixed(2)}</td>
+      <td>$${s.ask.toFixed(2)}</td>
+      <td class="${change>=0?"positive":"negative"}">
+        ${change>=0?"+":""}${change.toFixed(2)} (${pct.toFixed(2)}%)
+      </td>
+      <td>${pe}</td>
+      <td>${s.eps.toFixed(2)}</td>
+      <td>${s.dividend.toFixed(2)}</td>
+      <td>${s.sector}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderPortfolio() {
+  const tbody = document.querySelector("#portfolioTable tbody");
+  tbody.innerHTML = "";
+  for (const sym in state.portfolio) {
+    const pos = state.portfolio[sym];
+    if (pos.shares === 0) continue;
+    const stock = state.stocks.find(s => s.symbol === sym);
+    if (!stock) continue;
+    const value = pos.shares * stock.price;
+    const pl = value - pos.shares * pos.avgCost;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${sym}</td>
+      <td>${pos.shares}</td>
+      <td>$${pos.avgCost.toFixed(2)}</td>
+      <td>$${value.toFixed(2)}</td>
+      <td class="${pl>=0?"positive":"negative"}">${pl.toFixed(2)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderOptions() {
+  const tbody = document.querySelector("#optionsTable tbody");
+  tbody.innerHTML = "";
+  state.options.forEach(opt => {
+    const val = optionTheoreticalValue(opt);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${opt.symbol}</td>
+      <td>${opt.type.toUpperCase()}</td>
+      <td>${opt.strike.toFixed(2)}</td>
+      <td>${opt.expiryDay}</td>
+      <td>${opt.qty}</td>
+      <td>$${val.toFixed(2)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ===========================
+   CHARTS
+   =========================== */
+function drawPriceChart() {
+  const canvas = document.getElementById("priceChart");
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const sym = document.getElementById("symbolSelect").value;
+  const data = state.history[sym] || [];
+  if (data.length === 0) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  const padding = 10;
+  const candleWidth = Math.max((w - 2*padding) / data.length, 3);
+
+  const lows = data.map(d => d.low);
+  const highs = data.map(d => d.high);
+  const minP = Math.min(...lows);
+  const maxP = Math.max(...highs);
+  const scale = (h - 2*padding) / (maxP - minP || 1);
+
+  ctx.strokeStyle = "#555";
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, h-padding);
+  ctx.lineTo(w-padding, h-padding);
+  ctx.stroke();
+
+  data.forEach((d, i) => {
+    const x = padding + i * candleWidth + candleWidth/2;
+    const yHigh = h - padding - (d.high - minP)*scale;
+    const yLow  = h - padding - (d.low - minP)*scale;
+    const yOpen = h - padding - (d.open - minP)*scale;
+    const yClose= h - padding - (d.close- minP)*scale;
+
+    ctx.strokeStyle = "#ccc";
+    ctx.beginPath();
+    ctx.moveTo(x, yHigh);
+    ctx.lineTo(x, yLow);
+    ctx.stroke();
+
+    const color = d.close >= d.open ? "#4caf50" : "#ff5252";
+    ctx.fillStyle = color;
+    const top = Math.min(yOpen, yClose);
+    const bottom = Math.max(yOpen, yClose);
+    ctx.fillRect(x - candleWidth/2 + 1, top, candleWidth-2, Math.max(bottom-top,1));
+  });
+}
+
+function drawEquityChart() {
+  const canvas = document.getElementById("equityChart");
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const data = state.equityCurve;
+  if (data.length === 0) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  const padding = 10;
+
+  const minV = Math.min(...data.map(d => d.netWorth));
+  const maxV = Math.max(...data.map(d => d.netWorth));
+  const minD = data[0].day;
+  const maxD = data[data.length-1].day;
+
+  const xScale = (w - 2*padding) / (maxD - minD || 1);
+  const yScale = (h - 2*padding) / (maxV - minV || 1);
+
+  ctx.strokeStyle = "#555";
+  ctx.beginPath();
+  ctx.moveTo(padding, padding);
+  ctx.lineTo(padding, h-padding);
+  ctx.lineTo(w-padding, h-padding);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#2b7cff";
+  ctx.beginPath();
+  data.forEach((p, i) => {
+    const x = padding + (p.day - minD) * xScale;
+    const y = h - padding - (p.netWorth - minV) * yScale;
+    if (i === 0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+/* ===========================
+   ORDERS & EXECUTION
+   =========================== */
+function executeOrder(symbol, side, shares, type, limitPrice) {
+  const stock = state.stocks.find(s => s.symbol === symbol);
+  if (!stock || shares <= 0) return;
+
+  let price;
+  if (type === "market") {
+    price = (side === "buy" || side === "cover") ? stock.ask : stock.bid;
+  } else if (type === "limit") {
+    if (isNaN(limitPrice)) return log("Limit price required.", "bad");
+    if (side === "buy" || side === "cover") {
+      if (limitPrice < stock.ask) return log("Buy limit not reached.", "info");
+    } else {
+      if (limitPrice > stock.bid) return log("Sell limit not reached.", "info");
+    }
+    price = limitPrice;
+  } else if (type === "stop") {
+    if (isNaN(limitPrice)) return log("Stop price required.", "bad");
+    if (side === "sell" && stock.price > limitPrice) return;
+    if (side === "buy" && stock.price < limitPrice) return;
+    price = stock.price;
+  }
+
+  // Simple slippage for large orders
+  const slipFactor = 1 + (shares / 1000) * 0.002;
+  if (side === "buy" || side === "cover") price *= slipFactor;
+  else price /= slipFactor;
+
+  if (side === "buy") {
+    const cost = price * shares;
+    if (cost > state.cash) return log("Not enough cash.", "bad");
+    state.cash -= cost;
+    if (!state.portfolio[symbol]) state.portfolio[symbol] = { shares: 0, avgCost: 0 };
+    const pos = state.portfolio[symbol];
+    pos.avgCost = (pos.avgCost * pos.shares + cost) / (pos.shares + shares);
+    pos.shares += shares;
+    log(`Bought ${shares} ${symbol} @ $${price.toFixed(2)}`, "good");
+  } else if (side === "sell") {
+    const pos = state.portfolio[symbol];
+    if (!pos || pos.shares < shares) return log("Not enough shares.", "bad");
+    pos.shares -= shares;
+    const proceeds = price * shares;
+    state.cash += proceeds;
+    log(`Sold ${shares} ${symbol} @ $${price.toFixed(2)}`);
+  } else if (side === "short") {
+    const proceeds = price * shares;
+    state.cash += proceeds;
+    if (!state.shorts[symbol]) state.shorts[symbol] = { shares: 0, entryPrice: price };
+    const sh = state.shorts[symbol];
+    sh.entryPrice = (sh.entryPrice * sh.shares + price * shares) / (sh.shares + shares);
+    sh.shares += shares;
+    log(`Shorted ${shares} ${symbol} @ $${price.toFixed(2)}`, "good");
+  } else if (side === "cover") {
+    const sh = state.shorts[symbol];
+    if (!sh || sh.shares < shares) return log("Not enough short shares.", "bad");
+    const cost = price * shares;
+    state.cash -= cost;
+    const entry = sh.entryPrice * shares;
+    const pl = entry - cost;
+    sh.shares -= shares;
+    log(`Covered ${shares} ${symbol} @ $${price.toFixed(2)} (P/L: ${pl.toFixed(2)})`,
+        pl>=0?"good":"bad");
+  }
+}
+
+/* ===========================
+   OPTIONS TRADING
+   =========================== */
+function buyOption(symbol, type, strike, days, qty) {
+  const stock = state.stocks.find(s => s.symbol === symbol);
+  if (!stock) return;
+  const T = days;
+  const intrinsic = type === "call"
+    ? Math.max(stock.price - strike, 0)
+    : Math.max(strike - stock.price, 0);
+  const timeValue = 0.2 * Math.sqrt(Math.max(T,1));
+  const premiumPerShare = intrinsic + timeValue;
+  const totalCost = premiumPerShare * qty * 100;
+  if (totalCost > state.cash) return log("Not enough cash for option.", "bad");
+  state.cash -= totalCost;
+  const opt = {
+    symbol,
+    type,
+    strike,
+    expiryDay: state.day + days,
+    qty,
+    premium: premiumPerShare
+  };
+  state.options.push(opt);
+  log(`Bought ${qty} ${symbol} ${type.toUpperCase()} @ premium $${premiumPerShare.toFixed(2)} (strike ${strike}, exp ${opt.expiryDay})`, "good");
+}
+
+function processOptionExpiry() {
+  state.options = state.options.filter(opt => {
+    if (state.day < opt.expiryDay) return true;
+    const stock = state.stocks.find(s => s.symbol === opt.symbol);
+    if (!stock) return false;
+    const intrinsic = opt.type === "call"
+      ? Math.max(stock.price - opt.strike, 0)
+      : Math.max(opt.strike - stock.price, 0);
+    const payoff = intrinsic * opt.qty * 100;
+    if (payoff > 0) {
+      state.cash += payoff;
+      log(`Option expired ITM: ${opt.symbol} ${opt.type.toUpperCase()} payoff $${payoff.toFixed(2)}`, "good");
+    } else {
+      log(`Option expired worthless: ${opt.symbol} ${opt.type.toUpperCase()}`, "bad");
+    }
+    return false;
+  });
+}
+
+/* ===========================
+   AI TRADER
+   =========================== */
+function aiTraderStep() {
+  if (!state.aiRunning) return;
+  // Simple: pick random stock, look at last 5 candles
+  const stock = state.stocks[Math.floor(Math.random()*state.stocks.length)];
+  const hist = state.history[stock.symbol] || [];
+  if (hist.length < 6) return;
+
+  const last = hist.slice(-6);
+  const firstClose = last[0].close;
+  const lastClose = last[last.length-1].close;
+  const change = (lastClose - firstClose) / firstClose;
+
+  const riskBudget = state.cash * 0.1;
+  const shares = Math.max(1, Math.floor(riskBudget / stock.price));
+
+  if (change > 0.05) {
+    // momentum: buy
+    executeOrder(stock.symbol, "buy", shares, "market");
+  } else if (change < -0.05) {
+    // mean reversion: buy
+    executeOrder(stock.symbol, "buy", shares, "market");
+  } else if (Math.random() < 0.2) {
+    // occasionally take profits: sell some if we own
+    const pos = state.portfolio[stock.symbol];
+    if (pos && pos.shares > 0) {
+      const sellShares = Math.max(1, Math.floor(pos.shares * 0.3));
+      executeOrder(stock.symbol, "sell", sellShares, "market");
+    }
+  }
+}
+
+/* ===========================
+   DAY PROGRESSION
+   =========================== */
+function nextDay() {
+  state.day++;
+  updatePrices();
+  processOptionExpiry();
+  aiTraderStep();
+  updateStats();
+  renderMarket();
+  renderPortfolio();
+  renderOptions();
+  drawPriceChart();
+  drawEquityChart();
+}
+
+/* ===========================
+   SAVE / LOAD
+   =========================== */
+function saveGame() {
+  const data = JSON.stringify(state, (key, value) => {
+    if (key === "timer") return undefined;
+    return value;
+  });
+  localStorage.setItem("ultimateStockSimSave", data);
+  log("Game saved.");
+}
+
+function loadGame() {
+  const data = localStorage.getItem("ultimateStockSimSave");
+  if (!data) return log("No save found.", "bad");
+  const obj = JSON.parse(data);
+  Object.assign(state, obj);
+  // Rebuild references (stocks/history already plain objects)
+  renderMarket();
+  renderPortfolio();
+  renderOptions();
+  updateStats();
+  drawPriceChart();
+  drawEquityChart();
+  log("Game loaded.");
+}
+
+/* ===========================
+   INIT
+   =========================== */
+function init() {
+  state.stocks = initialStocks.map(s => ({ ...s }));
+  state.stocks.forEach(s => {
+    s.prevPrice = s.price;
+    s.bid = s.price * 0.995;
+    s.ask = s.price * 1.005;
+    state.history[s.symbol] = [{
+      day: state.day,
+      open: s.price,
+      high: s.price,
+      low: s.price,
+      close: s.price
+    }];
+  });
+  state.equityCurve = [{ day: state.day, netWorth: state.cash }];
+
+  const symSel = document.getElementById("symbolSelect");
+  const optSel = document.getElementById("optSymbol");
+  symSel.innerHTML = "";
+  optSel.innerHTML = "";
+  state.stocks.forEach(s => {
+    const o1 = document.createElement("option");
+    o1.value = s.symbol;
+    o1.textContent = s.symbol;
+    symSel.appendChild(o1);
+    const o2 = document.createElement("option");
+    o2.value = s.symbol;
+    o2.textContent = s.symbol;
+    optSel.appendChild(o2);
+  });
+
+  renderMarket();
+  renderPortfolio();
+  renderOptions();
+  updateStats();
+  drawPriceChart();
+  drawEquityChart();
+  log("Welcome to the ultimate stock market simulator!");
+}
+
+/* ===========================
+   EVENT LISTENERS
+   =========================== */
+document.getElementById("submitOrder").onclick = () => {
+  const sym = symbolSelect.value;
+  const sideVal = side.value;
+  const sharesVal = parseInt(shares.value, 10) || 0;
+  const typeVal = orderType.value;
+  const limitVal = parseFloat(limitPrice.value);
+  executeOrder(sym, sideVal, sharesVal, typeVal, limitVal);
+  updateStats();
+  renderPortfolio();
+  drawPriceChart();
+  drawEquityChart();
+};
+
+document.getElementById("nextDay").onclick = () => {
+  nextDay();
+};
+
+document.getElementById("autoBtn").onclick = () => {
+  if (!state.auto) {
+    state.auto = true;
+    autoBtn.textContent = "Stop Auto";
+    state.timer = setInterval(nextDay, state.speed);
+  } else {
+    state.auto = false;
+    autoBtn.textContent = "Start Auto";
+    clearInterval(state.timer);
+  }
+};
+
+document.getElementById("buyOptionBtn").onclick = () => {
+  const sym = optSymbol.value;
+  const type = optType.value;
+  const strike = parseFloat(optStrike.value);
+  const days = parseInt(optDays.value, 10);
+  const qty = parseInt(optQty.value, 10);
+  if (!sym || isNaN(strike) || isNaN(days) || isNaN(qty) || qty <= 0) {
+    return log("Invalid option parameters.", "bad");
+  }
+  buyOption(sym, type, strike, days, qty);
+  updateStats();
+  renderOptions();
+};
+
+document.getElementById("symbolSelect").onchange = () => {
+  drawPriceChart();
+};
+
+document.getElementById("aiToggleBtn").onclick = () => {
+  state.aiRunning = !state.aiRunning;
+  aiToggleBtn.textContent = state.aiRunning ? "Stop AI Trader" : "Start AI Trader";
+  log(`AI Trader ${state.aiRunning ? "enabled" : "disabled"}.`);
+};
+
+document.getElementById("saveBtn").onclick = saveGame;
+document.getElementById("loadBtn").onclick = loadGame;
+
+init();
+</script>
+
+</body>
+</html>
